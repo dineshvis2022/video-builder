@@ -3,6 +3,7 @@ package renderer
 import "video-builder/models"
 
 func getOpacity(element models.Element) float64 {
+
 	if element.Opacity <= 0 {
 		return 1
 	}
@@ -15,10 +16,12 @@ func getOpacity(element models.Element) float64 {
 }
 
 func getRotation(element models.Element) float64 {
+
 	return element.Rotation
 }
 
 func getFontSize(element models.Element) int {
+
 	if element.FontSize <= 0 {
 		return 60
 	}
@@ -27,6 +30,7 @@ func getFontSize(element models.Element) int {
 }
 
 func getFontColor(element models.Element) string {
+
 	if element.FontColor == "" {
 		return "white"
 	}
@@ -35,7 +39,9 @@ func getFontColor(element models.Element) string {
 }
 
 func getTextAlign(element models.Element) string {
+
 	switch element.Align {
+
 	case "center":
 		return "center"
 

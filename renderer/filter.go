@@ -153,7 +153,9 @@ func buildTextFilter(
 	opacity := getOpacity(element)
 	align := getTextAlign(element)
 
-	text := escapeFFmpegText(element.Text)
+	text := escapeFFmpegText(
+		element.Text,
+	)
 
 	fontColorWithOpacity := fmt.Sprintf(
 		"%s@%f",
@@ -171,7 +173,9 @@ func buildTextFilter(
 	if element.FontFile != "" {
 
 		escapedFontFile :=
-			escapeFFmpegPath(element.FontFile)
+			escapeFFmpegPath(
+				element.FontFile,
+			)
 
 		fontFile = fmt.Sprintf(
 			"fontfile='%s':",
@@ -209,6 +213,7 @@ func buildTextFilter(
 		outputLabel,
 	)
 }
+
 func validateFontFile(
 	element models.Element,
 ) error {
@@ -335,11 +340,7 @@ func buildGIFFilter(
 		outputLabel,
 	)
 }
-
-func buildTextXExpression(
-	x int,
-	align string,
-) string {
+func buildTextXExpression(x int, align string) string {
 
 	switch align {
 
@@ -364,4 +365,76 @@ func buildTextXExpression(
 			x,
 		)
 	}
+}
+
+func buildImageFilter(
+	videoLabel string,
+	imageLabel string,
+	outputLabel string,
+	element models.Element,
+	start int,
+	end int,
+) string {
+
+	imageLabelName :=
+		strings.Trim(
+			outputLabel,
+			"[]",
+		) + "_img"
+
+	opacity := getOpacity(element)
+
+	rotation := getRotation(element)
+
+	scaleFilter := fmt.Sprintf(
+		"scale=%d:%d:force_original_aspect_ratio=decrease",
+		element.Width,
+		element.Height,
+	)
+
+	opacityFilter := fmt.Sprintf(
+		"format=rgba,colorchannelmixer=aa=%f",
+		opacity,
+	)
+
+	imageFilters := scaleFilter
+
+	if rotation != 0 {
+
+		imageFilters += fmt.Sprintf(
+			",rotate=%f*PI/180:"+
+				"ow=rotw(iw):"+
+				"oh=roth(ih):"+
+				"c=none",
+			rotation,
+		)
+	}
+
+	imageFilters += "," + opacityFilter
+
+	return fmt.Sprintf(
+		"%s%s[%s];"+
+			"%s[%s]overlay=%d:%d:"+
+			"enable='between(t,%d,%d)'%s",
+
+		imageLabel,
+
+		imageFilters,
+
+		imageLabelName,
+
+		videoLabel,
+
+		imageLabelName,
+
+		element.X,
+
+		element.Y,
+
+		start,
+
+		end,
+
+		outputLabel,
+	)
 }

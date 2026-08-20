@@ -22,8 +22,7 @@ type Element struct {
 	ID   string `json:"id"`
 	Type string `json:"type"`
 
-	Text string `json:"text,omitempty"`
-
+	Text      string `json:"text,omitempty"`
 	AssetPath string `json:"assetPath,omitempty"`
 
 	X int `json:"x"`
@@ -35,7 +34,8 @@ type Element struct {
 	FontSize  int    `json:"fontSize,omitempty"`
 	FontColor string `json:"fontColor,omitempty"`
 	FontFile  string `json:"fontFile,omitempty"`
-	Align     string `json:"align,omitempty"`
+
+	Align string `json:"align,omitempty"`
 
 	Opacity  float64 `json:"opacity,omitempty"`
 	Rotation float64 `json:"rotation,omitempty"`

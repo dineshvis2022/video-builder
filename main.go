@@ -43,7 +43,9 @@ func main() {
 	)
 
 	// 7. Start server
-	log.Println("Video Builder API running on :8080")
+	log.Println(
+		"Video Builder API running on :8080",
+	)
 
 	if err := router.Run(":8080"); err != nil {
 		log.Fatal(err)
