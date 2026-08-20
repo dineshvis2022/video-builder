@@ -1,0 +1,20 @@
+Version 1
+Background + Text
+
+Version 2
+Background + Text + Image
+
+Version 3
+Background + Text + Image + GIF
+
+Version 4
+Fonts + better positioning + rotation + opacity
+
+Version 5
+Audio + animations + transitions
+
+Version 6
+S3 + PostgreSQL + project/asset management
+
+Version 7
+Redis + asynchronous render worker
