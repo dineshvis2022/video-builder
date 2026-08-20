@@ -23,29 +23,95 @@ func (b *FilterBuilder) Build(
 	invitation models.Invitation,
 ) (string, int, error) {
 
-	currentVideo := "[0:v]"
+	if len(invitation.Slides) == 0 {
+		return "", 0, fmt.Errorf(
+			"no slides found",
+		)
+	}
 
-	filterCount := 0
+	// 1. Split background into slide streams
+	splitLabels := make([]string, 0)
+	// splitExpression := fmt.Sprintf(
+	// 	"[0:v]split=%d%s",
+	// 	len(invitation.Slides),
+	// 	strings.Join(splitLabels, ""),
+	// )
 
-	for _, slide := range invitation.Slides {
+	for i := range invitation.Slides {
 
+		splitLabels = append(
+			splitLabels,
+			fmt.Sprintf(
+				"[bg%d]",
+				i,
+			),
+		)
+	}
+
+	b.filters = append(
+		b.filters,
+		fmt.Sprintf(
+			"[0:v]split=%d%s",
+			len(invitation.Slides),
+			strings.Join(
+				splitLabels,
+				"",
+			),
+		),
+	)
+
+	slideLabels := make(
+		[]string,
+		0,
+		len(invitation.Slides),
+	)
+
+	// 2. Build every slide
+	for i, slide := range invitation.Slides {
+
+		inputLabel := fmt.Sprintf(
+			"[bg%d]",
+			i,
+		)
+
+		outputLabel := fmt.Sprintf(
+			"[slide%d]",
+			i,
+		)
+
+		trimFilter := fmt.Sprintf(
+			"%strim=start=%d:end=%d,setpts=PTS-STARTPTS%s",
+			inputLabel,
+			slide.Start,
+			slide.End,
+			outputLabel,
+		)
+
+		b.filters = append(
+			b.filters,
+			trimFilter,
+		)
+
+		currentVideo := outputLabel
+
+		// 3. Add slide elements
 		for _, element := range slide.Elements {
 
 			switch element.Type {
 
 			case "text":
 
-				outputLabel := fmt.Sprintf(
-					"[v%d]",
-					filterCount,
+				nextLabel := fmt.Sprintf(
+					"[s%d_%d]",
+					i,
+					len(b.filters),
 				)
 
 				filter := buildTextFilter(
 					currentVideo,
-					outputLabel,
+					nextLabel,
 					element,
-					slide.Start,
-					slide.End,
+					slide.DisplayDuration,
 				)
 
 				b.filters = append(
@@ -53,9 +119,7 @@ func (b *FilterBuilder) Build(
 					filter,
 				)
 
-				currentVideo = outputLabel
-
-				filterCount++
+				currentVideo = nextLabel
 
 			case "image":
 
@@ -64,18 +128,18 @@ func (b *FilterBuilder) Build(
 					b.inputIndex,
 				)
 
-				outputLabel := fmt.Sprintf(
-					"[v%d]",
-					filterCount,
+				nextLabel := fmt.Sprintf(
+					"[s%d_%d]",
+					i,
+					len(b.filters),
 				)
 
 				filter := buildImageFilter(
 					currentVideo,
 					inputLabel,
-					outputLabel,
+					nextLabel,
 					element,
-					slide.Start,
-					slide.End,
+					slide.DisplayDuration,
 				)
 
 				b.filters = append(
@@ -83,10 +147,9 @@ func (b *FilterBuilder) Build(
 					filter,
 				)
 
-				currentVideo = outputLabel
+				currentVideo = nextLabel
 
 				b.inputIndex++
-				filterCount++
 
 			case "gif":
 
@@ -95,18 +158,18 @@ func (b *FilterBuilder) Build(
 					b.inputIndex,
 				)
 
-				outputLabel := fmt.Sprintf(
-					"[v%d]",
-					filterCount,
+				nextLabel := fmt.Sprintf(
+					"[s%d_%d]",
+					i,
+					len(b.filters),
 				)
 
 				filter := buildGIFFilter(
 					currentVideo,
 					inputLabel,
-					outputLabel,
+					nextLabel,
 					element,
-					slide.Start,
-					slide.End,
+					slide.DisplayDuration,
 				)
 
 				b.filters = append(
@@ -114,10 +177,9 @@ func (b *FilterBuilder) Build(
 					filter,
 				)
 
-				currentVideo = outputLabel
+				currentVideo = nextLabel
 
 				b.inputIndex++
-				filterCount++
 
 			default:
 
@@ -127,25 +189,111 @@ func (b *FilterBuilder) Build(
 				)
 			}
 		}
+
+		slideLabels = append(
+			slideLabels,
+			currentVideo,
+		)
 	}
 
+	// 4. Build slide transitions
+	currentVideo := slideLabels[0]
+
+	currentDuration :=
+		float64(invitation.Slides[0].DisplayDuration)
+
+	for i := 1; i < len(slideLabels); i++ {
+
+		transition := invitation.Slides[i].Transition
+
+		if transition == nil {
+
+			transition = &models.Transition{
+				Type:     "fade",
+				Duration: 0,
+			}
+		}
+
+		duration := transition.Duration
+
+		if duration <= 0 {
+
+			nextVideo := fmt.Sprintf(
+				"[concat%d]",
+				i,
+			)
+
+			b.filters = append(
+				b.filters,
+				fmt.Sprintf(
+					"%s%sconcat=n=2:v=1:a=0%s",
+					currentVideo,
+					slideLabels[i],
+					nextVideo,
+				),
+			)
+
+			currentVideo = nextVideo
+
+			currentDuration +=
+				float64(
+					invitation.Slides[i].DisplayDuration,
+				)
+
+			continue
+		}
+
+		offset :=
+			currentDuration - duration
+
+		nextVideo := fmt.Sprintf(
+			"[transition%d]",
+			i,
+		)
+
+		b.filters = append(
+			b.filters,
+			fmt.Sprintf(
+				"%s%sxfade=transition=%s:duration=%f:offset=%f%s",
+				currentVideo,
+				slideLabels[i],
+				transition.Type,
+				duration,
+				offset,
+				nextVideo,
+			),
+		)
+
+		currentVideo = nextVideo
+
+		currentDuration =
+			currentDuration +
+				float64(
+					invitation.Slides[i].DisplayDuration,
+				) -
+				duration
+	}
+
+	// 5. Final output
 	b.filters = append(
 		b.filters,
 		fmt.Sprintf(
-			"%snull[vout]",
+			"%sformat=yuv420p[vout]",
 			currentVideo,
 		),
 	)
 
-	return strings.Join(b.filters, ";"), b.inputIndex - 1, nil
+	return strings.Join(
+		b.filters,
+		";",
+	), b.inputIndex - 1, nil
 }
 
 func buildTextFilter(
 	inputLabel string,
 	outputLabel string,
 	element models.Element,
-	start int,
-	end int,
+	slideDuration int,
 ) string {
 
 	fontSize := getFontSize(element)
@@ -157,16 +305,66 @@ func buildTextFilter(
 		element.Text,
 	)
 
-	fontColorWithOpacity := fmt.Sprintf(
-		"%s@%f",
-		fontColor,
-		opacity,
-	)
+	fontColorWithOpacity := fontColor
 
-	xExpression := buildTextXExpression(
+	baseX := buildTextXExpression(
 		element.X,
 		align,
 	)
+
+	baseY := fmt.Sprintf(
+		"%d",
+		element.Y,
+	)
+
+	xExpression := baseX
+	yExpression := baseY
+
+	alphaExpression := fmt.Sprintf(
+		"%f",
+		opacity,
+	)
+
+	if element.Animation != nil {
+
+		switch element.Animation.Type {
+
+		case "fadeIn":
+
+			alphaExpression =
+				buildFadeInExpression(
+					element.Animation,
+					opacity,
+				)
+
+		case "fadeOut":
+
+			alphaExpression =
+				buildFadeOutExpression(
+					element.Animation,
+					opacity,
+					slideDuration,
+				)
+
+		case "slideLeft",
+			"slideRight":
+
+			xExpression =
+				buildSlideXExpression(
+					element.Animation,
+					baseX,
+				)
+
+		case "slideUp",
+			"slideDown":
+
+			yExpression =
+				buildSlideYExpression(
+					element.Animation,
+					baseY,
+				)
+		}
+	}
 
 	fontFile := ""
 
@@ -186,11 +384,11 @@ func buildTextFilter(
 	return fmt.Sprintf(
 		"%sdrawtext="+
 			"%stext='%s':"+
-			"x=%s:"+
-			"y=%d:"+
+			"x='%s':"+
+			"y='%s':"+
 			"fontsize=%d:"+
 			"fontcolor=%s:"+
-			"enable='between(t,%d,%d)'%s",
+			"alpha='%s'%s",
 
 		inputLabel,
 
@@ -200,15 +398,13 @@ func buildTextFilter(
 
 		xExpression,
 
-		element.Y,
+		yExpression,
 
 		fontSize,
 
 		fontColorWithOpacity,
 
-		start,
-
-		end,
+		alphaExpression,
 
 		outputLabel,
 	)
@@ -270,76 +466,6 @@ func escapeFFmpegPath(path string) string {
 	return path
 }
 
-func buildGIFFilter(
-	videoLabel string,
-	gifLabel string,
-	outputLabel string,
-	element models.Element,
-	start int,
-	end int,
-) string {
-
-	gifLabelName :=
-		strings.Trim(
-			outputLabel,
-			"[]",
-		) + "_gif"
-
-	opacity := getOpacity(element)
-
-	rotation := getRotation(element)
-
-	scaleFilter := fmt.Sprintf(
-		"scale=%d:%d:force_original_aspect_ratio=decrease",
-		element.Width,
-		element.Height,
-	)
-
-	gifFilters :=
-		"format=rgba," + scaleFilter
-
-	if rotation != 0 {
-
-		gifFilters += fmt.Sprintf(
-			",rotate=%f*PI/180:"+
-				"ow=rotw(iw):"+
-				"oh=roth(ih):"+
-				"c=none",
-			rotation,
-		)
-	}
-
-	gifFilters += fmt.Sprintf(
-		",colorchannelmixer=aa=%f",
-		opacity,
-	)
-
-	return fmt.Sprintf(
-		"%s%s[%s];"+
-			"%s[%s]overlay=%d:%d:"+
-			"enable='between(t,%d,%d)'%s",
-
-		gifLabel,
-
-		gifFilters,
-
-		gifLabelName,
-
-		videoLabel,
-
-		gifLabelName,
-
-		element.X,
-
-		element.Y,
-
-		start,
-
-		end,
-
-		outputLabel,
-	)
-}
 func buildTextXExpression(x int, align string) string {
 
 	switch align {
@@ -372,8 +498,7 @@ func buildImageFilter(
 	imageLabel string,
 	outputLabel string,
 	element models.Element,
-	start int,
-	end int,
+	slideDuration int,
 ) string {
 
 	imageLabelName :=
@@ -392,11 +517,6 @@ func buildImageFilter(
 		element.Height,
 	)
 
-	opacityFilter := fmt.Sprintf(
-		"format=rgba,colorchannelmixer=aa=%f",
-		opacity,
-	)
-
 	imageFilters := scaleFilter
 
 	if rotation != 0 {
@@ -410,12 +530,88 @@ func buildImageFilter(
 		)
 	}
 
-	imageFilters += "," + opacityFilter
+	imageFilters +=
+		",format=rgba"
+
+	imageFilters += fmt.Sprintf(
+		",colorchannelmixer=aa=%f",
+		opacity,
+	)
+
+	if element.Animation != nil {
+
+		switch element.Animation.Type {
+
+		case "fadeIn":
+
+			duration :=
+				getAnimationDuration(
+					element.Animation,
+				)
+
+			imageFilters += fmt.Sprintf(
+				",fade=t=in:st=0:d=%f:alpha=1",
+				duration,
+			)
+
+		case "fadeOut":
+
+			duration :=
+				getAnimationDuration(
+					element.Animation,
+				)
+
+			start :=
+				float64(slideDuration) - duration
+
+			imageFilters += fmt.Sprintf(
+				",fade=t=out:st=%f:d=%f:alpha=1",
+				start,
+				duration,
+			)
+		}
+	}
+
+	baseX := fmt.Sprintf(
+		"%d",
+		element.X,
+	)
+
+	baseY := fmt.Sprintf(
+		"%d",
+		element.Y,
+	)
+
+	xExpression := baseX
+	yExpression := baseY
+
+	if element.Animation != nil {
+
+		switch element.Animation.Type {
+
+		case "slideLeft",
+			"slideRight":
+
+			xExpression =
+				buildSlideXExpression(
+					element.Animation,
+					baseX,
+				)
+
+		case "slideUp",
+			"slideDown":
+
+			yExpression =
+				buildSlideYExpression(
+					element.Animation,
+					baseY,
+				)
+		}
+	}
 
 	return fmt.Sprintf(
 		"%s%s[%s];"+
-			"%s[%s]overlay=%d:%d:"+
-			"enable='between(t,%d,%d)'%s",
+			"%s[%s]overlay=x='%s':y='%s'%s",
 
 		imageLabel,
 
@@ -427,13 +623,9 @@ func buildImageFilter(
 
 		imageLabelName,
 
-		element.X,
+		xExpression,
 
-		element.Y,
-
-		start,
-
-		end,
+		yExpression,
 
 		outputLabel,
 	)

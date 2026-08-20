@@ -57,6 +57,13 @@ func validateInvitation(invitation models.Invitation) error {
 		return errors.New("at least one slide is required")
 	}
 
+	if err := validateAudio(
+		invitation.Audio,
+	); err != nil {
+
+		return err
+	}
+
 	for _, slide := range invitation.Slides {
 
 		// 4. Validate slide duration
@@ -64,6 +71,14 @@ func validateInvitation(invitation models.Invitation) error {
 			return errors.New(
 				"slide displayDuration must be greater than zero",
 			)
+		}
+
+		// 4. Validate Transition
+		if err := validateTransition(
+			slide.Transition,
+			slide.DisplayDuration,
+		); err != nil {
+			return err
 		}
 
 		// 5. Validate elements
@@ -192,6 +207,12 @@ func validateElement(element models.Element) error {
 				"gif height must be greater than zero",
 			)
 		}
+		if err := validateAnimation(
+			element.Animation,
+		); err != nil {
+
+			return err
+		}
 
 	default:
 
@@ -258,4 +279,139 @@ func isGIF(path string) bool {
 		filepath.Ext(path),
 		".gif",
 	)
+}
+
+func validateTransition(
+	transition *models.Transition,
+	slideDuration int,
+) error {
+
+	if transition == nil {
+		return nil
+	}
+
+	allowed := map[string]bool{
+		"fade":       true,
+		"wipeleft":   true,
+		"wiperight":  true,
+		"wipeup":     true,
+		"wipedown":   true,
+		"slideleft":  true,
+		"slideright": true,
+		"slideup":    true,
+		"slidedown":  true,
+	}
+
+	if !allowed[transition.Type] {
+
+		return fmt.Errorf(
+			"unsupported transition type: %s",
+			transition.Type,
+		)
+	}
+
+	if transition.Duration <= 0 {
+		return errors.New(
+			"transition duration must be greater than zero",
+		)
+	}
+
+	if transition.Duration >=
+		float64(slideDuration) {
+
+		return errors.New(
+			"transition duration must be less than slide duration",
+		)
+	}
+
+	return nil
+}
+
+func validateAnimation(
+	animation *models.Animation,
+) error {
+
+	if animation == nil {
+		return nil
+	}
+
+	allowed := map[string]bool{
+		"fadeIn":     true,
+		"fadeOut":    true,
+		"slideLeft":  true,
+		"slideRight": true,
+		"slideUp":    true,
+		"slideDown":  true,
+		"zoomIn":     true,
+		"zoomOut":    true,
+	}
+
+	if !allowed[animation.Type] {
+
+		return fmt.Errorf(
+			"unsupported animation type: %s",
+			animation.Type,
+		)
+	}
+
+	if animation.Duration < 0 {
+
+		return errors.New(
+			"animation duration cannot be negative",
+		)
+	}
+
+	if animation.Distance < 0 {
+
+		return errors.New(
+			"animation distance cannot be negative",
+		)
+	}
+
+	return nil
+}
+
+func validateAudio(
+	audio *models.AudioConfig,
+) error {
+
+	if audio == nil {
+		return nil
+	}
+
+	if audio.URL == "" {
+		return errors.New(
+			"audio url is required",
+		)
+	}
+
+	if audio.Volume < 0 ||
+		audio.Volume > 2 {
+
+		return errors.New(
+			"audio volume must be between 0 and 2",
+		)
+	}
+
+	if audio.BackgroundVolume < 0 ||
+		audio.BackgroundVolume > 2 {
+
+		return errors.New(
+			"background volume must be between 0 and 2",
+		)
+	}
+
+	if audio.FadeIn < 0 {
+		return errors.New(
+			"audio fadeIn cannot be negative",
+		)
+	}
+
+	if audio.FadeOut < 0 {
+		return errors.New(
+			"audio fadeOut cannot be negative",
+		)
+	}
+
+	return nil
 }

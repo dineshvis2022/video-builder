@@ -23,15 +23,14 @@ func NewFFmpegRenderer(
 		OutputDir:  outputDir,
 	}
 }
-
 func (r *FFmpegRenderer) Render(
 	invitation models.Invitation,
 ) (string, error) {
 
-	// 1. Build filter graph
+	// 1. Build video filter graph
 	filterBuilder := NewFilterBuilder()
 
-	filterComplex, imageCount, err :=
+	filterComplex, _, err :=
 		filterBuilder.Build(invitation)
 
 	if err != nil {
@@ -46,10 +45,19 @@ func (r *FFmpegRenderer) Render(
 		return "", err
 	}
 
-	// 3. Calculate total duration
-	totalDuration := calculateTotalDuration(
+	// 3. Calculate final rendered duration
+	// Transitions overlap two slides, so their duration
+	// is subtracted from the total duration.
+	totalDuration := calculateRenderedDuration(
 		invitation,
 	)
+
+	if totalDuration <= 0 {
+		return "", fmt.Errorf(
+			"invalid rendered duration: %f",
+			totalDuration,
+		)
+	}
 
 	// 4. Create output file
 	outputFile := fmt.Sprintf(
@@ -62,95 +70,203 @@ func (r *FFmpegRenderer) Render(
 	args := []string{
 		"-y",
 
+		// Background video
 		"-i",
 		invitation.Background.URL,
 	}
 
-	// 6. Add media inputs
+	// 6. Add image and GIF inputs
 	addMediaInputs(
 		&args,
 		invitation,
 	)
 
-	// 7. Add filter complex
+	// 7. Calculate external audio input index
+	//
+	// Input 0 = background video
+	// Input 1..N = image/GIF inputs
+	// Input N+1 = external audio
+	audioInputIndex := -1
+
+	if invitation.Audio != nil &&
+		invitation.Audio.URL != "" {
+
+		audioInputIndex =
+			1 +
+				countMediaInputs(
+					invitation,
+				)
+
+		// Loop audio when requested
+		if invitation.Audio.Loop {
+
+			args = append(
+				args,
+				"-stream_loop",
+				"-1",
+			)
+		}
+
+		// External music
+		args = append(
+			args,
+			"-i",
+			invitation.Audio.URL,
+		)
+	}
+
+	// 8. Build audio filters
+	//
+	// Video filter already contains [vout].
+	// Here we append audio filters when external
+	// audio is configured.
+	if audioInputIndex >= 0 {
+
+		audioFilter,
+			hasAudio :=
+			buildAudioFilter(
+				invitation,
+				audioInputIndex,
+				int(totalDuration),
+			)
+
+		if !hasAudio {
+			return "", fmt.Errorf(
+				"failed to build audio filter",
+			)
+		}
+
+		filterComplex += ";" +
+			audioFilter
+
+		// 9. Mix external music with background audio
+		if invitation.Audio.MixWithBackground {
+
+			backgroundAudioFilter :=
+				buildBackgroundAudioFilter(
+					invitation,
+					int(totalDuration),
+				)
+
+			filterComplex += ";" +
+				backgroundAudioFilter
+
+			// Mix background audio and music
+			filterComplex +=
+				"[bgAudio][music]" +
+					"amix=inputs=2:" +
+					"duration=first:" +
+					"dropout_transition=0" +
+					"[aout]"
+
+		} else {
+
+			// Use external music only
+			filterComplex +=
+				"[music]anull[aout]"
+		}
+	}
+
+	// 10. Add filter complex
 	args = append(
 		args,
 		"-filter_complex",
 		filterComplex,
 	)
 
-	// 8. Map rendered video
+	// 11. Map rendered video
 	args = append(
 		args,
 		"-map",
 		"[vout]",
 	)
 
-	// 9. Map background audio if available
-	args = append(
-		args,
-		"-map",
-		"0:a?",
-	)
+	// 12. Map audio
+	if audioInputIndex >= 0 {
 
-	// 10. Video codec
+		// External/mixed audio
+		args = append(
+			args,
+			"-map",
+			"[aout]",
+		)
+
+	} else {
+
+		// Keep background video's original audio
+		args = append(
+			args,
+			"-map",
+			"0:a?",
+		)
+	}
+
+	// 13. Video codec
 	args = append(
 		args,
 		"-c:v",
 		"libx264",
 	)
 
-	// 11. Encoding preset
+	// 14. Encoding preset
 	args = append(
 		args,
 		"-preset",
 		"veryfast",
 	)
 
-	// 12. Video quality
+	// 15. Video quality
 	args = append(
 		args,
 		"-crf",
 		"23",
 	)
 
-	// 13. Audio codec
+	// 16. Pixel format
+	args = append(
+		args,
+		"-pix_fmt",
+		"yuv420p",
+	)
+
+	// 17. Audio codec
 	args = append(
 		args,
 		"-c:a",
 		"aac",
 	)
 
-	// 14. Audio bitrate
+	// 18. Audio bitrate
 	args = append(
 		args,
 		"-b:a",
 		"128k",
 	)
 
-	// 15. Output duration
+	// 19. Output duration
 	args = append(
 		args,
 		"-t",
 		fmt.Sprintf(
-			"%d",
+			"%.3f",
 			totalDuration,
 		),
 	)
 
-	// 16. Output file
+	// 20. Output file
 	args = append(
 		args,
 		outputFile,
 	)
 
+	// 21. Print FFmpeg command
 	fmt.Println("FFmpeg command:")
 	fmt.Println(
 		r.FFmpegPath,
 		strings.Join(args, " "),
 	)
 
-	// 17. Execute FFmpeg
+	// 22. Execute FFmpeg
 	cmd := exec.Command(
 		r.FFmpegPath,
 		args...,
@@ -175,13 +291,38 @@ func (r *FFmpegRenderer) Render(
 			)
 	}
 
+	// 23. Print success
 	fmt.Println(
 		"FFmpeg completed successfully",
 	)
 
-	_ = imageCount
+	fmt.Println(
+		"Output:",
+		outputFile,
+	)
 
 	return outputFile, nil
+}
+
+func countMediaInputs(
+	invitation models.Invitation,
+) int {
+
+	count := 0
+
+	for _, slide := range invitation.Slides {
+
+		for _, element := range slide.Elements {
+
+			switch element.Type {
+
+			case "image", "gif":
+				count++
+			}
+		}
+	}
+
+	return count
 }
 
 func addMediaInputs(
@@ -232,6 +373,30 @@ func calculateTotalDuration(
 	}
 
 	return totalDuration
+}
+
+func calculateRenderedDuration(
+	invitation models.Invitation,
+) float64 {
+
+	duration := 0.0
+
+	for i, slide := range invitation.Slides {
+
+		duration +=
+			float64(
+				slide.DisplayDuration,
+			)
+
+		if i > 0 &&
+			slide.Transition != nil {
+
+			duration -=
+				slide.Transition.Duration
+		}
+	}
+
+	return duration
 }
 
 func escapeFFmpegText(text string) string {

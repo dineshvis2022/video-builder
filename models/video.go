@@ -1,21 +1,38 @@
 package models
 
 type Invitation struct {
-	ProjectID  string     `json:"projectId"`
-	Background Background `json:"background"`
-	Slides     []Slide    `json:"slides"`
+	ProjectID  string       `json:"projectId"`
+	Background Background   `json:"background"`
+	Audio      *AudioConfig `json:"audio,omitempty"`
+	Slides     []Slide      `json:"slides"`
 }
 
 type Background struct {
 	URL string `json:"url"`
 }
 
+type AudioConfig struct {
+	URL               string  `json:"url"`
+	Volume            float64 `json:"volume,omitempty"`
+	Loop              bool    `json:"loop,omitempty"`
+	FadeIn            float64 `json:"fadeIn,omitempty"`
+	FadeOut           float64 `json:"fadeOut,omitempty"`
+	MixWithBackground bool    `json:"mixWithBackground,omitempty"`
+	BackgroundVolume  float64 `json:"backgroundVolume,omitempty"`
+}
+
 type Slide struct {
-	SlideID         int       `json:"slideId"`
-	DisplayDuration int       `json:"displayDuration"`
-	Start           int       `json:"-"`
-	End             int       `json:"-"`
-	Elements        []Element `json:"elements"`
+	SlideID         int         `json:"slideId"`
+	DisplayDuration int         `json:"displayDuration"`
+	Start           int         `json:"-"`
+	End             int         `json:"-"`
+	Transition      *Transition `json:"transition,omitempty"`
+	Elements        []Element   `json:"elements"`
+}
+
+type Transition struct {
+	Type     string  `json:"type"`
+	Duration float64 `json:"duration"`
 }
 
 type Element struct {
@@ -39,4 +56,12 @@ type Element struct {
 
 	Opacity  float64 `json:"opacity,omitempty"`
 	Rotation float64 `json:"rotation,omitempty"`
+
+	Animation *Animation `json:"animation,omitempty"`
+}
+
+type Animation struct {
+	Type     string  `json:"type"`
+	Duration float64 `json:"duration,omitempty"`
+	Distance int     `json:"distance,omitempty"`
 }
