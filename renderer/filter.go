@@ -611,20 +611,16 @@ func buildImageFilter(
 
 	return fmt.Sprintf(
 		"%s%s[%s];"+
-			"%s[%s]overlay=x='%s':y='%s'%s",
+			"%s[%s]overlay=x='%s':y='%s':shortest=1%s",
 
 		imageLabel,
-
 		imageFilters,
-
 		imageLabelName,
 
 		videoLabel,
-
 		imageLabelName,
 
 		xExpression,
-
 		yExpression,
 
 		outputLabel,

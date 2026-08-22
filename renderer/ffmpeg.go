@@ -153,17 +153,16 @@ func (r *FFmpegRenderer) Render(
 
 			// Mix background audio and music
 			filterComplex +=
-				"[bgAudio][music]" +
+				";[bgAudio][music]" +
 					"amix=inputs=2:" +
 					"duration=first:" +
 					"dropout_transition=0" +
 					"[aout]"
 
 		} else {
-
 			// Use external music only
 			filterComplex +=
-				"[music]anull[aout]"
+				";[music]anull[aout]"
 		}
 	}
 
@@ -265,6 +264,8 @@ func (r *FFmpegRenderer) Render(
 		r.FFmpegPath,
 		strings.Join(args, " "),
 	)
+	fmt.Println("FINAL FILTER COMPLEX:")
+	fmt.Println(filterComplex)
 
 	// 22. Execute FFmpeg
 	cmd := exec.Command(

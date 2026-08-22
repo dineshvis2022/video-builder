@@ -272,20 +272,16 @@ func buildGIFFilter(
 	}
 	return fmt.Sprintf(
 		"%s%s[%s];"+
-			"%s[%s]overlay=x='%s':y='%s'%s",
+			"%s[%s]overlay=x='%s':y='%s':shortest=1%s",
 
 		gifLabel,
-
 		gifFilters,
-
 		gifLabelName,
 
 		videoLabel,
-
 		gifLabelName,
 
 		xExpression,
-
 		yExpression,
 
 		outputLabel,
