@@ -1,10 +1,15 @@
 import React from "react";
 
 import {
+  getFontDefinition,
+} from "./fonts";
+
+import {
   AbsoluteFill,
+  Img,
   useCurrentFrame,
   useVideoConfig,
-  Video as RemotionVideo,
+  staticFile,
 } from "remotion";
 
 import {
@@ -15,14 +20,42 @@ import {
 
 import {
   buildTimeline,
+  TimelineSlide,
 } from "./timeline";
 
-import {getAnimationStyle} from "./animations/animations";
+import {
+  getAnimationStyle,
+} from "./animations/animations";
 
+import {
+  getTransitionStyle,
+} from "./transitions";
+
+import {
+  GifElement,
+} from "./media";
+
+import {
+  AudioLayer,
+} from "./audio";
+
+// {fontDefinitions.map(
+//   (font) => (
+//     <style
+//       key={font.family}
+//     >{`
+//       @font-face {
+//         font-family: '${font.family}';
+//         src: url('${font.src}');
+//       }
+//     `}</style>
+//   ),
+// )}
 
 type Props = {
   invitation: Invitation;
 };
+
 
 export const Video: React.FC<Props> = ({
   invitation,
@@ -40,48 +73,303 @@ export const Video: React.FC<Props> = ({
     fps,
   );
 
-  const currentSlide =
-    timeline.find(
+const activeSlides =
+  getActiveSlides(
+    timeline,
+    frame,
+    fps,
+  );
+  
+
+  const getFontDefinitions = (
+  ) => {
+    const fonts = new Map<
+      string,
+      ReturnType<
+        typeof getFontDefinition
+      >
+    >();
+
+    for (
+      const slide of invitation.slides
+    ) {
+      for (
+        const element of slide.elements
+      ) {
+        if (
+          element.type === "text" &&
+          element.fontFile
+        ) {
+          const definition =
+            getFontDefinition(
+              element.fontFile,
+            );
+
+          if (definition) {
+            fonts.set(
+              definition.family,
+              definition,
+            );
+          }
+        }
+      }
+    }
+
+  return Array.from(
+    fonts.values(),
+  ).filter(
+    (
+      font,
+    ): font is NonNullable<
+      typeof font
+    > => Boolean(font),
+  );
+};
+
+
+  return (
+    <AbsoluteFill
+      style={{
+        backgroundColor: "black",
+      }}
+    >
+      <BackgroundVideo
+        invitation={invitation}
+      />
+
+      {activeSlides.map(
+        ({
+          slide,
+          transitionFrame,
+          transitionDuration,
+          isEntering,
+        }) => (
+          <TransitionSlide
+            key={slide.slideId}
+            slide={slide}
+            frame={
+              frame -
+              slide.startFrame
+            }
+            transitionFrame={
+              transitionFrame
+            }
+            transitionDuration={
+              transitionDuration
+            }
+            isEntering={isEntering}
+            width={width}
+            height={height}
+            fps={fps}
+          />
+        ),
+      )}
+
+      <AudioLayer
+        invitation={invitation}
+      />
+    </AbsoluteFill>
+  );
+};
+
+type ActiveSlide = {
+  slide: TimelineSlide;
+  transitionFrame: number;
+  transitionDuration: number;
+  isEntering: boolean;
+};
+
+const getActiveSlides = (
+  timeline: TimelineSlide[],
+  frame: number,
+  fps: number,
+): ActiveSlide[] => {
+  if (timeline.length === 0) {
+    return [];
+  }
+
+  const activeIndex =
+    timeline.findIndex(
       (slide) =>
         frame >= slide.startFrame &&
         frame < slide.endFrame,
     );
 
-  if (!currentSlide) {
-    return (
-      <AbsoluteFill
-        style={{
-          backgroundColor: "black",
-        }}
-      />
-    );
+  if (activeIndex < 0) {
+    return [];
   }
 
-  const slideFrame =
-    frame - currentSlide.startFrame;
+  const current =
+    timeline[activeIndex];
 
- return (
+  const previous =
+    activeIndex > 0
+      ? timeline[activeIndex - 1]
+      : undefined;
+
+  const transition =
+    current.transition;
+
+  const transitionDuration =
+    transition
+      ? transition.duration
+      : 0;
+
+  const transitionFrames =
+    Math.round(
+      transitionDuration *
+        fps,
+    );
+
+  const transitionStart =
+    current.startFrame;
+
+  const isEntering =
+    transitionFrames > 0 &&
+    frame <
+      transitionStart +
+        transitionFrames;
+
+  if (
+    isEntering &&
+    previous
+  ) {
+    return [
+      {
+        slide: previous,
+        transitionFrame:
+          frame -
+          transitionStart,
+        transitionDuration:
+          transitionFrames,
+        isEntering: false,
+      },
+      {
+        slide: current,
+        transitionFrame:
+          frame -
+          transitionStart,
+        transitionDuration:
+          transitionFrames,
+        isEntering: true,
+      },
+    ];
+  }
+
+  return [
+    {
+      slide: current,
+      transitionFrame: 0,
+      transitionDuration: 0,
+      isEntering: false,
+    },
+  ];
+};
+
+type BackgroundVideoProps = {
+  invitation: Invitation;
+};
+
+const BackgroundVideo: React.FC<
+  BackgroundVideoProps
+> = ({ invitation }) => {
+  if (!invitation.background.url) {
+    return null;
+  }
+
+  const hasExternalAudio =
+    invitation.audio &&
+    invitation.audio.url !== "";
+
+  const mixBackground =
+    invitation.audio
+      ?.mixWithBackground === true;
+
+  const muted =
+    Boolean(hasExternalAudio) &&
+    !mixBackground;
+
+  const backgroundVolume =
+    invitation.audio
+      ?.backgroundVolume || 1;
+
+  return (
+    <video
+      src={getAssetPath(
+        invitation.background.url,
+      )}
+      muted={muted}
+      // volume={
+      //     muted
+      //       ? 0
+      //       : backgroundVolume
+      //   }
+        loop
+      autoPlay
+      style={{
+        position: "absolute",
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+      }}
+    />
+  );
+};
+
+type TransitionSlideProps = {
+  slide: TimelineSlide;
+  frame: number;
+  transitionFrame: number;
+  transitionDuration: number;
+  isEntering: boolean;
+  width: number;
+  height: number;
+  fps: number;
+};
+
+const TransitionSlide: React.FC<
+  TransitionSlideProps
+> = ({
+  slide,
+  frame,
+  transitionFrame,
+  transitionDuration,
+  isEntering,
+  width,
+  height,
+  fps,
+}) => {
+  const transitionStyle =
+    getTransitionStyle(
+      slide.transition?.type,
+      transitionFrame,
+      transitionDuration,
+      isEntering,
+    );
+
+  
+  return (
     <AbsoluteFill
       style={{
-        scale: 0.997,
-      }}
-    >
-      <RemotionVideo
-        src={invitation.background.url}
-        muted
-        loop
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-        }}
-      />
+      opacity:
+        transitionStyle.opacity,
 
+      transform:
+        transitionStyle.transform,
+
+      clipPath:
+        transitionStyle.clipPath,
+
+      zIndex:
+        isEntering ? 2 : 1,
+    }}
+    >
       <SlideView
-        slide={currentSlide}
-        frame={slideFrame}
+        slide={slide}
+        frame={frame}
         width={width}
         height={height}
+        fps={fps}
       />
     </AbsoluteFill>
   );
@@ -92,47 +380,35 @@ type SlideViewProps = {
   frame: number;
   width: number;
   height: number;
-  
+  fps: number;
 };
 
-const SlideView: React.FC<SlideViewProps> = ({
+const SlideView: React.FC<
+  SlideViewProps
+> = ({
   slide,
   frame,
   width,
   height,
+  fps,
 }) => {
   return (
     <AbsoluteFill>
       {slide.elements.map(
         (element) => (
-         <ElementView
+          <ElementView
             key={element.id}
             element={element}
             frame={frame}
-            fps={30}
+            fps={fps}
             width={width}
             height={height}
             slideDurationInFrames={
-              slide.displayDuration
+              slide.durationInFrames
             }
           />
         ),
       )}
-
-      <div
-        style={{
-          position: "absolute",
-
-          left: 30,
-          bottom: 30,
-
-          color: "white",
-
-          fontSize: 20,
-        }}
-      >
-        Slide {slide.slideId}
-      </div>
     </AbsoluteFill>
   );
 };
@@ -154,17 +430,37 @@ const ElementView: React.FC<
   fps,
   width,
   height,
-  slideDurationInFrames
+  slideDurationInFrames,
 }) => {
+  const animationStyle =
+    getAnimationStyle(
+      element.animation,
+      frame,
+      fps,
+      slideDurationInFrames,
+    );
+
+  const rotation =
+    element.rotation
+      ? `rotate(${element.rotation}deg)`
+      : "";
+
+  const transform =
+    animationStyle.transform ===
+    "none"
+      ? rotation || undefined
+      : `${rotation} ${animationStyle.transform}`;
+
+  const opacity =
+    (element.opacity ?? 1) *
+    animationStyle.opacity;
+
   if (element.type === "text") {
     return (
       <TextElement
         element={element}
-        frame={frame}
-        fps={fps}
-        width={width}
-        height={height}
-        slideDurationInFrames={slideDurationInFrames}
+        transform={transform}
+        opacity={opacity}
       />
     );
   }
@@ -173,11 +469,19 @@ const ElementView: React.FC<
     return (
       <ImageElement
         element={element}
-        frame={frame}
-        fps={fps}
-        width={width}
-        height={height}
-        slideDurationInFrames={slideDurationInFrames}
+        transform={transform}
+        opacity={opacity}
+      />
+    );
+  }
+
+  if (element.type === "gif") {
+    return (
+      <GifElement
+        element={element}
+        transform={transform}
+        opacity={opacity}
+        style={animationStyle}
       />
     );
   }
@@ -185,39 +489,33 @@ const ElementView: React.FC<
   return null;
 };
 
+type TextElementProps = {
+  element: Element;
+  transform: string | undefined;
+  opacity: number;
+};
+
 const TextElement: React.FC<
-  ElementViewProps
+  TextElementProps
 > = ({
   element,
-  frame,
-  fps,
-  slideDurationInFrames
+  transform,
+  opacity,
 }) => {
-  const textAlign =
-    element.align === "center"
-      ? "center"
-      : element.align === "right"
-        ? "right"
-        : "left";
+  const align =
+    element.align || "left";
 
-  const baseTransform =
-    element.align === "center"
+  const xTransform =
+    align === "center"
       ? "translateX(-50%)"
-      : element.align === "right"
+      : align === "right"
         ? "translateX(-100%)"
-        : "none";
+        : "";
 
-  const animationStyle =
-    getAnimationStyle(
-      element.animation,
-      frame,
-      fps,
-      slideDurationInFrames,
-    );
-  const transform =
-    animationStyle.transform === "none"
-      ? baseTransform
-      : `${baseTransform} ${animationStyle.transform}`;
+  const finalTransform =
+    transform
+      ? `${xTransform} ${transform}`
+      : xTransform || undefined;
 
   return (
     <div
@@ -227,23 +525,33 @@ const TextElement: React.FC<
         left: element.x,
         top: element.y,
 
-        transform,
+        transform:
+          finalTransform,
 
         fontSize:
-          element.fontSize || 40,
+          element.fontSize || 60,
 
         color:
           element.fontColor ||
           "white",
 
-        textAlign,
+        opacity,
 
-        opacity:
-          (element.opacity ?? 1) *
-          animationStyle.opacity,
+        textAlign: align,
 
         whiteSpace:
           "pre-wrap",
+
+        fontFamily:
+          element.fontFile
+            ? element.fontFile
+                .split("/")
+                .pop()
+                ?.replace(
+                  /\.[^/.]+$/,
+                  "",
+                )
+            : "Arial",
       }}
     >
       {element.text}
@@ -251,55 +559,78 @@ const TextElement: React.FC<
   );
 };
 
+type ImageElementProps = {
+  element: Element;
+  transform: string | undefined;
+  opacity: number;
+};
+
 const ImageElement: React.FC<
-  ElementViewProps
+  ImageElementProps
 > = ({
   element,
-  frame,
-  fps,
-  slideDurationInFrames
+  transform,
+  opacity,
 }) => {
   if (!element.assetPath) {
     return null;
   }
 
- const animationStyle =
-  getAnimationStyle(
-    element.animation,
-    frame,
-    fps,
-    slideDurationInFrames,
-  );
-  const rotation =
-    element.rotation
-      ? `rotate(${element.rotation}deg)`
-      : "";
-
-  const transform =
-    animationStyle.transform === "none"
-      ? rotation || undefined
-      : `${rotation} ${animationStyle.transform}`;
-
   return (
-    <img
-      src={element.assetPath}
+    <Img
+      src={getAssetPath(
+        element.assetPath,
+      )}
       style={{
         position: "absolute",
 
         left: element.x,
         top: element.y,
 
-        width: element.width,
-        height: element.height,
+        width:
+          element.width,
 
-        objectFit: "contain",
+        height:
+          element.height,
 
-        opacity:
-          (element.opacity ?? 1) *
-          animationStyle.opacity,
+        objectFit:
+          "contain",
+
+        opacity,
 
         transform,
       }}
     />
   );
 };
+
+const getAssetPath = (
+  path: string,
+): string => {
+  if (
+    path.startsWith(
+      "http://",
+    ) ||
+    path.startsWith(
+      "https://",
+    )
+  ) {
+    return path;
+  }
+
+  if (path.startsWith("/")) {
+    return path;
+  }
+
+  return staticFile(`/${path}`);
+};
+
+const getFontFamily = (
+  path: string,
+): string => {
+  return path
+    .split("/")
+    .pop()
+    ?.split(".")[0] || "CustomFont";
+};
+

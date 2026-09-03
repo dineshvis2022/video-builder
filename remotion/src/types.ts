@@ -28,7 +28,7 @@ export type Slide = {
   end?: number;
 
   transition?: Transition;
-
+  durationInFrames: number;
   elements: Element[];
 };
 
@@ -40,7 +40,7 @@ export type Transition = {
 export type Element = {
   id: string;
 
-  type: string;
+  type: "text" | "image" | "gif";
 
   text?: string;
 
@@ -58,19 +58,29 @@ export type Element = {
 
   fontFile?: string;
 
-  align?: string;
+  align?: "left" | "center" | "right";
 
   opacity?: number;
 
   rotation?: number;
 
   animation?: Animation;
+  
 };
 
 export type Animation = {
-  type: string;
+  type:
+    | "fadeIn"
+    | "fadeOut"
+    | "slideLeft"
+    | "slideRight"
+    | "slideUp"
+    | "slideDown"
+    | "zoomIn"
+    | "zoomOut";
 
   duration?: number;
 
   distance?: number;
 };
+

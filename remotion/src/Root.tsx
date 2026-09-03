@@ -15,103 +15,149 @@ const defaultInvitation: Invitation = {
   background: {
     url: staticFile("/assets/background.mp4"),
   },
+audio: {
+  url: "/assets/music.mp3",
+  volume: 0.6,
+  loop: true,
+  fadeIn: 1,
+  fadeOut: 2,
+  mixWithBackground: true,
+  backgroundVolume: 0.2,
+},
 
-  slides: [
-    {
-      slideId: 1,
+slides: [
+  {
+    slideId: 1,
+    durationInFrames:5,
+    displayDuration: 5,
 
-      displayDuration: 5,
+    elements: [
+      {
+        id: "couple",
+        type: "image",
 
-      elements: [
-        {
-          id: "image-1",
-          type: "image",
+        assetPath: staticFile("/assets/couple.png"),
 
-          assetPath: staticFile("/assets/couple.png"),
+        x: 700,
+        y: 150,
 
-          x: 710,
-          y: 150,
+        width: 500,
+        height: 500,
 
-          width: 500,
-          height: 500,
-
-          animation: {
-            type: "fadeIn",
-            duration: 2,
-          },
+        animation: {
+          type: "zoomIn",
+          duration: 2,
         },
+      },
 
-        {
-          id: "text-1",
-          type: "text",
-          text: "Sadhna ❤️ Kartik",
+      {
+        id: "title",
+        type: "text",
 
-          x: 960,
-          y: 750,
+        text:
+          "Sadhna ❤️ Kartik",
 
-          fontSize: 70,
+        x: 960,
+        y: 750,
 
-          fontColor: "white",
+        fontSize: 70,
 
-          align: "center",
+        fontColor: "white",
 
-          animation: {
-            type: "slideLeft",
-            duration: 2,
-            distance: 500,
-          },
+        align: "center",
+
+        animation: {
+          type: "fadeIn",
+          duration: 2,
         },
-      ],
+      },
+
+      {
+        id: "gif",
+        type: "gif",
+
+        assetPath:
+          "/assets/animation.gif",
+
+        x: 1200,
+        y: 200,
+
+        width: 300,
+        height: 300,
+      },
+    ],
+  },
+
+  {
+    slideId: 2,
+    durationInFrames:5,
+    displayDuration: 5,
+
+    transition: {
+      type: "fade",
+      duration: 1,
     },
 
-    {
-      slideId: 2,
+    elements: [
+      {
+        id: "venue",
+        type: "text",
 
-      displayDuration: 5,
+        text:
+          "The Grand Palace",
 
-      elements: [
-        {
-          id: "text-2",
-          type: "text",
+        x: 960,
+        y: 400,
 
-          text: "The Grand Palace",
+        fontSize: 70,
 
-          x: 960,
-          y: 400,
+        fontColor: "white",
 
-          fontSize: 70,
+        align: "center",
 
-          fontColor: "white",
-
-          align: "center",
+        animation: {
+          type: "slideUp",
+          duration: 2,
         },
-      ],
+      },
+    ],
+  },
+
+  {
+    slideId: 3,
+    durationInFrames: 5,
+    displayDuration: 5,
+
+    transition: {
+      type: "wipeleft",
+      duration: 1,
     },
 
-    {
-      slideId: 3,
+    elements: [
+      {
+        id: "save",
+        type: "text",
 
-      displayDuration: 5,
+        text:
+          "Save The Date",
 
-      elements: [
-        {
-          id: "text-3",
-          type: "text",
+        x: 960,
+        y: 400,
 
-          text: "Save The Date",
+        fontSize: 80,
 
-          x: 960,
-          y: 400,
+        fontColor: "white",
 
-          fontSize: 70,
+        align: "center",
 
-          fontColor: "white",
-
-          align: "center",
+        animation: {
+          type: "zoomOut",
+          duration: 2,
         },
-      ],
-    },
-  ],
+      },
+    ],
+  },
+],
 };
 
 const FPS = 30;

@@ -1,10 +1,14 @@
-import { Invitation, Slide } from "./types";
+import {
+  Invitation,
+  Slide,
+} from "./types";
 
-export type TimelineSlide = Slide & {
-  startFrame: number;
-  endFrame: number;
-  durationInFrames: number;
-};
+export type TimelineSlide =
+  Slide & {
+    startFrame: number;
+    endFrame: number;
+    durationInFrames: number;
+  };
 
 export const buildTimeline = (
   invitation: Invitation,
@@ -12,36 +16,71 @@ export const buildTimeline = (
 ): TimelineSlide[] => {
   let currentFrame = 0;
 
-  return invitation.slides.map((slide) => {
-    const durationInFrames = Math.round(
-      slide.displayDuration * fps,
-    );
+  return invitation.slides.map(
+    (slide) => {
+      const durationInFrames =
+        Math.round(
+          slide.displayDuration *
+            fps,
+        );
 
-    const startFrame = currentFrame;
+      const startFrame =
+        currentFrame;
 
-    const endFrame =
-      startFrame + durationInFrames;
+      const endFrame =
+        startFrame +
+        durationInFrames;
 
-    currentFrame = endFrame;
+      const transitionFrames =
+        Math.round(
+          (slide.transition
+            ?.duration || 0) *
+            fps,
+        );
 
-    return {
-      ...slide,
+      currentFrame =
+        endFrame -
+        transitionFrames;
 
-      startFrame,
-      endFrame,
-      durationInFrames,
-    };
-  });
-};
+      return {
+        ...slide,
 
-export const getTotalDurationInFrames = (
-  invitation: Invitation,
-  fps: number,
-): number => {
-  return invitation.slides.reduce(
-    (total, slide) =>
-      total +
-      Math.round(slide.displayDuration * fps),
-    0,
+        startFrame,
+
+        endFrame,
+
+        durationInFrames,
+      };
+    },
   );
 };
+
+export const getTotalDurationInFrames =
+  (
+    invitation: Invitation,
+    fps: number,
+  ): number => {
+    let totalFrames = 0;
+
+    invitation.slides.forEach(
+      (slide) => {
+        totalFrames +=
+          Math.round(
+            slide.displayDuration *
+              fps,
+          );
+
+        totalFrames -=
+          Math.round(
+            (slide.transition
+              ?.duration || 0) *
+              fps,
+          );
+      },
+    );
+
+    return Math.max(
+      1,
+      totalFrames,
+    );
+  };

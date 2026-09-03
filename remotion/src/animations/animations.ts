@@ -40,12 +40,11 @@ export const getAnimationStyle = (
           extrapolateRight: "clamp",
         },
       ),
-
       transform: "none",
     };
   }
 
-  if (type === "fadeOut") {
+    if (type === "fadeOut") {
     const startFrame = Math.max(
       0,
       totalFrames - durationInFrames,
@@ -64,7 +63,6 @@ export const getAnimationStyle = (
           extrapolateRight: "clamp",
         },
       ),
-
       transform: "none",
     };
   }
@@ -146,6 +144,40 @@ export const getAnimationStyle = (
     return {
       opacity: 1,
       transform: `translateY(${y}px)`,
+    };
+  }
+
+  if (type === "zoomIn") {
+    const scale = interpolate(
+      frame,
+      [0, durationInFrames],
+      [0, 1],
+      {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      },
+    );
+
+    return {
+      opacity: 1,
+      transform: `scale(${scale})`,
+    };
+  }
+
+  if (type === "zoomOut") {
+    const scale = interpolate(
+      frame,
+      [0, durationInFrames],
+      [1.2, 1],
+      {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      },
+    );
+
+    return {
+      opacity: 1,
+      transform: `scale(${scale})`,
     };
   }
 
